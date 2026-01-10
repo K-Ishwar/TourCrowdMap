@@ -138,9 +138,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                 .toLowerCase();
                             if (geo == null) return null;
 
-                            Color color = Colors.blue.withValues(alpha: 0.3);
+                            Color color = Colors.grey.withValues(alpha: 0.3);
+                            if (crowd.contains('low')) {
+                              color = Colors.green.withValues(alpha: 0.3);
+                            }
                             if (crowd.contains('moderate')) {
-                              color = Colors.yellow.withValues(alpha: 0.3);
+                              color = Colors.orange.withValues(alpha: 0.3);
                             }
                             if (crowd.contains('high')) {
                               color = Colors.red.withValues(alpha: 0.3);
@@ -202,19 +205,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     );
                   },
                   child: const Icon(Icons.auto_awesome),
-                ),
-                const SizedBox(height: 12),
-                FloatingActionButton(
-                  heroTag: 'seed',
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.blue,
-                  onPressed: () {
-                    _firestoreService.seedLocations();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Seeding sample data...')),
-                    );
-                  },
-                  child: const Icon(Icons.dataset),
                 ),
               ],
             ),
