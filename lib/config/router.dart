@@ -27,20 +27,19 @@ final router = GoRouter(
           builder: (context, state) => const MapScreen(),
           routes: [
             GoRoute(
-              path: '/map/:id', // Changed path from ':id' to '/map/:id'
+              path: ':id',
               builder: (context, state) {
                 final id = state.pathParameters['id'];
                 return LocationDetailsScreen(id: id);
               },
             ),
-            GoRoute(
-              // Added new route for /admin
-              path: '/admin',
-              builder: (context, state) {
-                return const AdminDashboardScreen();
-              },
-            ),
           ],
+        ),
+        GoRoute(
+          path: '/admin',
+          builder: (context, state) {
+            return const AdminDashboardScreen();
+          },
         ),
       ],
     ),

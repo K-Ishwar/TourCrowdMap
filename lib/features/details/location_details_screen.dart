@@ -315,21 +315,24 @@ class LocationDetailsScreen extends StatelessWidget {
                             final suggestions = allDocs.where((doc) {
                               if (doc.id == id) return false; // Exclude current
                               final d = doc.data() as Map<String, dynamic>;
-                              return (d['crowdLevel'] as String? ?? '')
+                              final hasLocation = d['location'] != null;
+                              final isLow = (d['crowdLevel'] as String? ?? '')
                                   .toLowerCase()
                                   .contains('low');
+                              return isLow && hasLocation;
                             }).toList();
 
-                            // Simple distance sort (Euclidean approximation is enough for small scale,
-                            // but Haversine is better. For simplicity/speed without extra deps, we do basic lat/lng diff).
-                            // Actually, let's just show them. Sorting by distance requires calculating it.
+                            // Simple distance sort
                             suggestions.sort((a, b) {
-                              final locA =
-                                  (a.data() as Map<String, dynamic>)['location']
-                                      as GeoPoint;
-                              final locB =
-                                  (b.data() as Map<String, dynamic>)['location']
-                                      as GeoPoint;
+                              final dataA = a.data() as Map<String, dynamic>;
+                              final dataB = b.data() as Map<String, dynamic>;
+
+                              // We filtered nulls above, but being extra safe
+                              final locA = dataA['location'] as GeoPoint?;
+                              final locB = dataB['location'] as GeoPoint?;
+
+                              if (locA == null || locB == null) return 0;
+
                               final distA =
                                   (locA.latitude - currentGeo.latitude).abs() +
                                   (locA.longitude - currentGeo.longitude).abs();
