@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -6,53 +7,65 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 1000),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).colorScheme.primaryContainer,
+              Colors.white,
+            ],
+          ),
+        ),
+        child: Center(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(height: 40),
               Icon(
-                Icons.travel_explore,
-                size: 100,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+                    Icons.map_outlined,
+                    size: 100,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                  .animate()
+                  .fadeIn(duration: 600.ms)
+                  .scale(delay: 200.ms), // Animate Icon
               const SizedBox(height: 24),
               Text(
-                'Explore the World with Crowdsourced Data',
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                'TourCrowdMap',
+                style: Theme.of(context).textTheme.displayMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-                textAlign: TextAlign.center,
-              ),
+              ).animate().fadeIn(delay: 400.ms).moveY(begin: 20, end: 0),
               const SizedBox(height: 16),
               Text(
-                'Discover hidden gems, rate popular spots, and share your adventures with a global community. Real-time updates and interactive maps await.',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.grey.shade600,
-                  height: 1.5,
+                'Avoid crowds. Explore smartly.',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Colors.grey.shade700,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              ElevatedButton.icon(
-                onPressed: () => context.go('/map'),
-                icon: const Icon(Icons.map),
-                label: const Text('Start Exploring'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 20,
-                  ),
-                  textStyle: const TextStyle(fontSize: 18),
-                ),
-              ),
-              const SizedBox(height: 80),
-              // Optional: Features grid or more content could go here
+              ).animate().fadeIn(delay: 600.ms).moveY(begin: 20, end: 0),
+              const SizedBox(height: 48),
+              FilledButton.icon(
+                    onPressed: () => context.go('/map'),
+                    icon: const Icon(Icons.explore),
+                    label: const Text('Start Exploring'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 16,
+                      ),
+                      textStyle: const TextStyle(fontSize: 18),
+                    ),
+                  )
+                  .animate()
+                  .fadeIn(delay: 800.ms)
+                  .scale()
+                  .shimmer(
+                    delay: 1500.ms,
+                    duration: 1000.ms,
+                  ), // Shimmer effect on button
             ],
           ),
         ),

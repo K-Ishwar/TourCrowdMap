@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:tour_crowd_map/features/home/firestore_service.dart';
 
 class MapScreen extends StatefulWidget {
@@ -13,203 +14,306 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
+  final FirestoreService _firestoreService = FirestoreService();
+  bool _showHeatmap = false;
 
-  // Pune Center
-  static const CameraPosition _pune = CameraPosition(
-    target: LatLng(18.5204, 73.8567),
-    zoom: 12.0,
-  );
+  static const LatLng _puneCenter = LatLng(18.5204, 73.8567);
 
   @override
   Widget build(BuildContext context) {
-    final firestoreService = FirestoreService();
-    final isDesktop = MediaQuery.of(context).size.width > 800;
-
+    // Responsive Layout
     return Scaffold(
-      body: StreamBuilder<QuerySnapshot>(
-        stream: firestoreService.getLocations(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError)
-            return const Center(child: Text('Error loading data'));
-
-          final docs = snapshot.data?.docs ?? [];
-          final markers = _createMarkersFromDocs(docs);
-
-          return Row(
-            children: [
-              // List View (Side Panel on Desktop)
-              if (isDesktop)
-                SizedBox(
-                  width: 400,
-                  child: _buildSidePanel(context, firestoreService, docs),
-                )
-              else
-                Expanded(
-                  child: _buildMobileLayout(
-                    context,
-                    firestoreService,
-                    docs,
-                    markers,
-                  ),
-                ),
-
-              // Map View (On Desktop)
-              if (isDesktop)
-                Expanded(
-                  child: GoogleMap(
-                    initialCameraPosition: _pune,
-                    markers: markers,
-                    onMapCreated: (controller) => _mapController = controller,
-                    mapType: MapType.normal,
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (c) => _AddLocationDialog(service: firestoreService),
-          );
-        },
-        child: const Icon(Icons.add_location_alt),
-      ),
-    );
-  }
-
-  Set<Marker> _createMarkersFromDocs(List<QueryDocumentSnapshot> docs) {
-    return docs
-        .map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final geo = data['location'] as GeoPoint?;
-
-          if (geo == null) return null;
-
-          final crowd = (data['crowdLevel'] as String? ?? 'moderate')
-              .toLowerCase();
-          double hue;
-
-          if (crowd.contains('low')) {
-            hue = BitmapDescriptor.hueGreen;
-          } else if (crowd.contains('high')) {
-            hue = BitmapDescriptor.hueRed;
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth > 800) {
+            // Desktop: Split View
+            return Row(
+              children: [
+                SizedBox(width: 400, child: _buildLocationList(context)),
+                Expanded(child: _buildMap(context)),
+              ],
+            );
           } else {
-            hue = BitmapDescriptor.hueYellow; // Moderate/Medium
+            // Mobile: Stack
+            return Stack(
+              children: [
+                _buildMap(context),
+                DraggableScrollableSheet(
+                  initialChildSize: 0.4,
+                  minChildSize: 0.2,
+                  maxChildSize: 0.8,
+                  builder: (context, scrollController) {
+                    return Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(16),
+                        ),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black12, blurRadius: 10),
+                        ],
+                      ),
+                      child: _buildLocationList(context, scrollController),
+                    );
+                  },
+                ),
+              ],
+            );
           }
-
-          return Marker(
-            markerId: MarkerId(doc.id),
-            position: LatLng(geo.latitude, geo.longitude),
-            infoWindow: InfoWindow(
-              title: data['name'] ?? 'Unknown',
-              snippet:
-                  'Crowd: ${data['crowdLevel'] ?? 'N/A'} (Tap for details)',
-              onTap: () {
-                // Navigate to details
-                context.go('/map/${doc.id}');
-              },
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(hue),
-          );
-        })
-        .whereType<Marker>()
-        .toSet();
-  }
-
-  Widget _buildMobileLayout(
-    BuildContext context,
-    FirestoreService service,
-    List<QueryDocumentSnapshot> docs,
-    Set<Marker> markers,
-  ) {
-    return Stack(
-      children: [
-        GoogleMap(
-          initialCameraPosition: _pune,
-          markers: markers,
-          onMapCreated: (controller) => _mapController = controller,
-          myLocationEnabled: true,
-          myLocationButtonEnabled: true,
-        ),
-        Positioned(
-          bottom: 80,
-          right: 16,
-          child: FloatingActionButton.small(
-            heroTag: 'list_toggle',
+        },
+      ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'admin',
+            backgroundColor: Colors.blueGrey.shade900,
+            foregroundColor: Colors.white,
+            onPressed: () => context.push('/admin'),
+            child: const Icon(Icons.admin_panel_settings),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.small(
+            heroTag: 'simulate',
+            backgroundColor: Colors.purple.shade900,
+            foregroundColor: Colors.white,
             onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                builder: (c) => _buildSidePanel(context, service, docs),
+              _firestoreService.simulateLiveUpdates();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Simulating Live Data Update...')),
               );
             },
-            child: const Icon(Icons.list),
+            child: const Icon(Icons.auto_awesome),
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            onPressed: () {
+              _firestoreService.seedLocations();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Seeding sample data...')),
+              );
+            },
+            child: const Icon(Icons.dataset),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSidePanel(
-    BuildContext context,
-    FirestoreService firestoreService,
-    List<QueryDocumentSnapshot> data,
-  ) {
-    return Container(
-      decoration: BoxDecoration(
-        border: const Border(right: BorderSide(color: Colors.grey)),
-        color: Colors.white,
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search locations...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+  Widget _buildMap(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestoreService.getLocations(),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+
+        return Stack(
+          children: [
+            FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: _puneCenter,
+                initialZoom: 13.0,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.example.tour_crowd_map',
                 ),
-                filled: true,
-                fillColor: Colors.grey.shade100,
+                if (_showHeatmap)
+                  CircleLayer(
+                    circles: docs
+                        .map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final geo = data['location'] as GeoPoint?;
+                          if (geo == null) return null;
+
+                          final crowd = (data['crowdLevel'] as String? ?? '')
+                              .toLowerCase();
+                          Color color = Colors.yellow; // Moderate default
+                          if (crowd.contains('low'))
+                            color = Colors.blue;
+                          else if (crowd.contains('high'))
+                            color = Colors.red;
+
+                          return CircleMarker(
+                            point: LatLng(geo.latitude, geo.longitude),
+                            color: color.withOpacity(0.3),
+                            borderStrokeWidth: 0,
+                            useRadiusInMeter: true,
+                            radius: 500, // 500m radius for heatmap
+                          );
+                        })
+                        .whereType<CircleMarker>()
+                        .toList(),
+                  ),
+                MarkerLayer(
+                  markers: docs
+                      .map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final geo = data['location'] as GeoPoint?;
+                        if (geo == null) return null;
+
+                        final crowd = (data['crowdLevel'] as String? ?? '')
+                            .toLowerCase();
+                        Color color = Colors.orange;
+                        if (crowd.contains('low'))
+                          color = Colors.green;
+                        else if (crowd.contains('high'))
+                          color = Colors.red;
+
+                        return Marker(
+                          point: LatLng(geo.latitude, geo.longitude),
+                          width: 40,
+                          height: 40,
+                          child: GestureDetector(
+                            onTap: () => context.go('/map/${doc.id}'),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: color, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: color.withOpacity(0.4),
+                                    blurRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(Icons.place, color: color, size: 24),
+                            ),
+                          ),
+                        );
+                      })
+                      .whereType<Marker>()
+                      .toList(),
+                ),
+              ],
+            ),
+            // Heatmap Toggle Button
+            Positioned(
+              top: 16,
+              right: 16,
+              child: FloatingActionButton.small(
+                heroTag: 'heatmap_toggle',
+                backgroundColor: Colors.white,
+                onPressed: () {
+                  setState(() {
+                    _showHeatmap = !_showHeatmap;
+                  });
+                },
+                child: Icon(
+                  Icons.layers,
+                  color: _showHeatmap ? Colors.deepPurple : Colors.grey,
+                ),
               ),
             ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLocationList(
+    BuildContext context, [
+    ScrollController? scrollController,
+  ]) {
+    return Column(
+      children: [
+        // Header
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Explore Places',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search locations...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: data.isEmpty
-                ? const Center(child: Text('No places found'))
-                : ListView.separated(
-                    itemCount: data.length,
-                    separatorBuilder: (c, i) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final doc = data[index];
-                      final map = doc.data() as Map<String, dynamic>;
+        ),
 
-                      // Determine Color for icon in list too?
-                      final crowd = (map['crowdLevel'] as String? ?? '')
-                          .toLowerCase();
-                      Color iconColor = Colors.orange;
-                      if (crowd.contains('low'))
-                        iconColor = Colors.green;
-                      else if (crowd.contains('high'))
-                        iconColor = Colors.red;
+        // List from Firestore
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _firestoreService.getLocations(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-                      return ListTile(
+              final data = snapshot.data?.docs ?? [];
+
+              if (data.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.search_off,
+                        size: 64,
+                        color: Colors.grey.shade300,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No places found',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                controller: scrollController,
+                itemCount: data.length,
+                separatorBuilder: (c, i) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final doc = data[index];
+                  final map = doc.data() as Map<String, dynamic>;
+
+                  final crowd = (map['crowdLevel'] as String? ?? '')
+                      .toLowerCase();
+                  Color iconColor = Colors.orange;
+                  if (crowd.contains('low'))
+                    iconColor = Colors.green;
+                  else if (crowd.contains('high'))
+                    iconColor = Colors.red;
+
+                  return ListTile(
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 8,
                         ),
-                        isThreeLine: true,
                         leading: Container(
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
                             color: iconColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: iconColor.withOpacity(0.3),
+                            ),
                           ),
                           child: Icon(Icons.place, color: iconColor),
                         ),
@@ -258,82 +362,21 @@ class _MapScreenState extends State<MapScreen> {
                           onPressed: () {
                             final geo = map['location'] as GeoPoint?;
                             if (geo != null) {
-                              _mapController?.animateCamera(
-                                CameraUpdate.newLatLng(
-                                  LatLng(geo.latitude, geo.longitude),
-                                ),
+                              _mapController.move(
+                                LatLng(geo.latitude, geo.longitude),
+                                15.0,
                               );
                             }
                           },
                         ),
-                      );
-                    },
-                  ),
+                      )
+                      .animate()
+                      .fadeIn(duration: 300.ms, delay: (50 * index).ms)
+                      .slideX(begin: -0.1, end: 0);
+                },
+              );
+            },
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextButton.icon(
-              onPressed: () async {
-                await firestoreService.seedLocations();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('Data Seeded!')));
-                }
-              },
-              icon: const Icon(Icons.cloud_upload),
-              label: const Text('Seed Sample Data (Dev Only)'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AddLocationDialog extends StatefulWidget {
-  final FirestoreService service;
-  const _AddLocationDialog({required this.service});
-
-  @override
-  State<_AddLocationDialog> createState() => _AddLocationDialogState();
-}
-
-class _AddLocationDialogState extends State<_AddLocationDialog> {
-  final _nameCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Location'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _nameCtrl,
-            decoration: const InputDecoration(labelText: 'Location Name'),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _descCtrl,
-            decoration: const InputDecoration(labelText: 'Description'),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            if (_nameCtrl.text.isNotEmpty) {
-              widget.service.addLocation(_nameCtrl.text, _descCtrl.text);
-              Navigator.pop(context);
-            }
-          },
-          child: const Text('Add'),
         ),
       ],
     );

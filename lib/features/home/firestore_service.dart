@@ -105,4 +105,21 @@ class FirestoreService {
     }
     await batch.commit();
   }
+
+  Future<void> simulateLiveUpdates() async {
+    final snapshot = await _db.collection('locations').get();
+    final random = DateTime.now().millisecondsSinceEpoch;
+
+    // Quick random generator logic
+    final levels = ['Low', 'Moderate', 'High'];
+
+    for (var doc in snapshot.docs) {
+      // Pick random level
+      final newLevel = levels[(random + doc.id.hashCode) % 3];
+      await doc.reference.update({
+        'crowdLevel': newLevel,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+    }
+  }
 }

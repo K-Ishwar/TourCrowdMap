@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart'; // For formatting date
+import 'package:intl/intl.dart';
+import 'package:tour_crowd_map/features/details/crowd_chart.dart';
 import 'package:tour_crowd_map/features/home/firestore_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LocationDetailsScreen extends StatelessWidget {
   final String? id;
@@ -82,11 +85,15 @@ class LocationDetailsScreen extends StatelessWidget {
                   height: 250,
                   color: Colors.grey.shade300,
                   child: Center(
-                    child: Icon(
-                      Icons.map_rounded,
-                      size: 80,
-                      color: Colors.grey.shade500,
-                    ),
+                    child:
+                        Icon(
+                          Icons.map_rounded,
+                          size: 80,
+                          color: Colors.grey.shade500,
+                        ).animate().scale(
+                          duration: 500.ms,
+                          curve: Curves.easeOutBack,
+                        ),
                   ),
                 ),
                 Padding(
@@ -98,7 +105,7 @@ class LocationDetailsScreen extends StatelessWidget {
                         name,
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
+                      ).animate().fadeIn().moveX(),
                       const SizedBox(height: 16),
 
                       // Crowd Level Card
@@ -107,17 +114,84 @@ class LocationDetailsScreen extends StatelessWidget {
                         value: crowdLevel,
                         icon: Icons.groups,
                         color: statusColor,
-                      ),
+                      ).animate().fadeIn(delay: 200.ms).slideX(),
 
                       const SizedBox(height: 12),
 
-                      // Best Time Card
-                      _InfoCard(
-                        title: 'Best Time to Visit',
-                        value: bestTime,
-                        icon: Icons.access_time,
-                        color: Colors.blueGrey,
-                      ),
+                      // Smart Visit Suggestion
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.blue.shade50, Colors.white],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue.shade200),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.auto_awesome,
+                                color: Colors.blue,
+                                size: 28,
+                              ),
+                            ).animate().shimmer(
+                              delay: 1000.ms,
+                              duration: 1500.ms,
+                            ), // Shimmer Icon
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Smart Suggestion',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade800,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Best time to visit:\n$bestTime',
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Based on past crowd trends',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ).animate().fadeIn(delay: 400.ms).slideX(),
 
                       const SizedBox(height: 12),
 
@@ -145,6 +219,31 @@ class LocationDetailsScreen extends StatelessWidget {
                           ],
                         ),
                       ),
+
+                      const SizedBox(height: 24),
+
+                      // Popular Times Chart (Visual Analytics)
+                      const CrowdChart().animate().fadeIn(delay: 600.ms),
+
+                      const SizedBox(height: 24),
+
+                      // Get Directions Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            _launchMaps(data['location'] as GeoPoint?);
+                          },
+                          icon: const Icon(Icons.directions),
+                          label: const Text('GET DIRECTIONS'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ).animate().fadeIn(delay: 700.ms),
 
                       const SizedBox(height: 24),
                       const Divider(),
@@ -416,6 +515,18 @@ class LocationDetailsScreen extends StatelessWidget {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _launchMaps(GeoPoint? location) async {
+    if (location == null) return;
+    final url = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}',
+    );
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      debugPrint('Could not launch $url');
     }
   }
 }

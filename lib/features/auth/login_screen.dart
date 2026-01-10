@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tour_crowd_map/features/auth/auth_service.dart';
 
@@ -16,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _authService = AuthService();
   bool _isLoading = false;
   bool _isLogin = true;
+  String? _errorMessage;
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -64,7 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // Removed unused theme variable
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -89,32 +91,39 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Text(
                           _isLogin ? 'Welcome Back' : 'Create Account',
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
-                          ),
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                           textAlign: TextAlign.center,
-                        ),
+                        ).animate().fadeIn().moveY(begin: -10, end: 0),
+
                         const SizedBox(height: 8),
                         Text(
                           _isLogin
                               ? 'Sign in to continue'
                               : 'Sign up to get started',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey,
-                          ),
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: Colors.grey.shade600),
                           textAlign: TextAlign.center,
-                        ),
+                        ).animate().fadeIn(delay: 200.ms),
+
                         const SizedBox(height: 32),
+
+                        // Email Field
                         TextFormField(
                           controller: _emailController,
                           decoration: const InputDecoration(
-                            labelText: 'Email Address',
+                            labelText: 'Email',
                             prefixIcon: Icon(Icons.email_outlined),
                           ),
-                          validator: (v) => v!.isEmpty ? 'Required' : null,
-                        ),
+                          validator: (v) => v!.isEmpty ? 'Enter email' : null,
+                        ).animate().fadeIn(delay: 300.ms).slideX(),
+
                         const SizedBox(height: 16),
+
+                        // Password Field
                         TextFormField(
                           controller: _passwordController,
                           decoration: const InputDecoration(
@@ -124,53 +133,68 @@ class _LoginScreenState extends State<LoginScreen> {
                           obscureText: true,
                           validator: (v) =>
                               v!.length < 6 ? 'Min 6 chars' : null,
-                        ),
+                        ).animate().fadeIn(delay: 400.ms).slideX(),
+
                         const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: _isLoading ? null : _submit,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: theme.colorScheme.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+
+                        if (_errorMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: Colors.red),
+                              textAlign: TextAlign.center,
+                            ),
+                          ).animate().shake(),
+
+                        // Action Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: FilledButton(
+                            onPressed: _isLoading ? null : _submit,
+                            child: _isLoading
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(_isLogin ? 'Login' : 'Register'),
                           ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Text(_isLogin ? 'LOGIN' : 'REGISTER'),
-                        ),
+                        ).animate().fadeIn(delay: 500.ms).scale(),
+
                         const SizedBox(height: 16),
-                        Center(
-                          child: Text('OR', style: theme.textTheme.labelSmall),
-                        ),
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          onPressed: _isLoading ? null : _googleSignIn,
-                          icon: const Icon(Icons.g_mobiledata, size: 28),
-                          label: const Text('Sign in with Google'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+
+                        // Google Sign In
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: _isLoading ? null : _googleSignIn,
+                            icon: const Icon(Icons.g_mobiledata, size: 28),
+                            label: const Text('Sign in with Google'),
                           ),
-                        ),
-                        const SizedBox(height: 24),
+                        ).animate().fadeIn(delay: 600.ms).scale(),
+
+                        const SizedBox(height: 16),
+
+                        // Toggle Mode
                         TextButton(
                           onPressed: () {
                             setState(() {
                               _isLogin = !_isLogin;
-                              _formKey.currentState?.reset();
+                              _errorMessage = null;
                             });
                           },
                           child: Text(
                             _isLogin
-                                ? 'Don\'t have an account? Register'
-                                : 'Already have an account? Login',
+                                ? 'No account? Register'
+                                : 'Have an account? Login',
                           ),
-                        ),
+                        ).animate().fadeIn(delay: 700.ms),
                       ],
                     ),
                   ),

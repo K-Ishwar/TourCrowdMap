@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tour_crowd_map/features/admin/admin_dashboard_screen.dart';
 import 'package:tour_crowd_map/features/auth/login_screen.dart';
 import 'package:tour_crowd_map/features/details/location_details_screen.dart';
 import 'package:tour_crowd_map/features/home/home_screen.dart';
@@ -26,10 +27,17 @@ final router = GoRouter(
           builder: (context, state) => const MapScreen(),
           routes: [
             GoRoute(
-              path: ':id',
+              path: '/map/:id', // Changed path from ':id' to '/map/:id'
               builder: (context, state) {
                 final id = state.pathParameters['id'];
                 return LocationDetailsScreen(id: id);
+              },
+            ),
+            GoRoute(
+              // Added new route for /admin
+              path: '/admin',
+              builder: (context, state) {
+                return const AdminDashboardScreen();
               },
             ),
           ],
