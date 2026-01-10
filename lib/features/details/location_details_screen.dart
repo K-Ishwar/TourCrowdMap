@@ -9,31 +9,43 @@ import 'package:url_launcher/url_launcher.dart';
 
 class LocationDetailsScreen extends StatelessWidget {
   final String? id;
+  final bool isEmbedded; // New flag
 
-  const LocationDetailsScreen({super.key, required this.id});
+  const LocationDetailsScreen({
+    super.key,
+    required this.id,
+    this.isEmbedded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (id == null) {
-      return const Scaffold(body: Center(child: Text('Location not found')));
+      return const Center(child: Text('Select a location to see details'));
     }
 
     final firestoreService = FirestoreService();
 
+    // If embedded, we return just the body content, basically.
+    // Or we modify the scaffold.
+    // Let's keep Scaffold but hide AppBar if isEmbedded.
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Location Details'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/map');
-            }
-          },
-        ),
-      ),
+      backgroundColor: Colors.transparent, // Transparent for embedding
+      appBar: isEmbedded
+          ? null
+          : AppBar(
+              title: const Text('Location Details'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/map');
+                  }
+                },
+              ),
+            ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: firestoreService.getLocationById(id!),
         builder: (context, snapshot) {
@@ -131,7 +143,7 @@ class LocationDetailsScreen extends StatelessWidget {
                           border: Border.all(color: Colors.blue.shade200),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.withOpacity(0.1),
+                              color: Colors.blue.withValues(alpha: 0.1),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),
@@ -142,7 +154,7 @@ class LocationDetailsScreen extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
+                                color: Colors.blue.withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -301,19 +313,23 @@ class LocationDetailsScreen extends StatelessWidget {
                         StreamBuilder<QuerySnapshot>(
                           stream: firestoreService.getLocations(),
                           builder: (context, suggestionsSnapshot) {
-                            if (!suggestionsSnapshot.hasData)
+                            if (!suggestionsSnapshot.hasData) {
                               return const SizedBox();
+                            }
 
                             final currentGeo = data['location'] as GeoPoint?;
-                            if (currentGeo == null)
+                            if (currentGeo == null) {
                               return const Text(
                                 'Location data unavailable for suggestions.',
                               );
+                            }
 
                             // Filter and Sort
                             final allDocs = suggestionsSnapshot.data!.docs;
                             final suggestions = allDocs.where((doc) {
-                              if (doc.id == id) return false; // Exclude current
+                              if (doc.id == id) {
+                                return false; // Exclude current
+                              }
                               final d = doc.data() as Map<String, dynamic>;
                               final hasLocation = d['location'] != null;
                               final isLow = (d['crowdLevel'] as String? ?? '')
@@ -323,11 +339,11 @@ class LocationDetailsScreen extends StatelessWidget {
                             }).toList();
 
                             // Simple distance sort
+                            // Simple distance sort
                             suggestions.sort((a, b) {
                               final dataA = a.data() as Map<String, dynamic>;
                               final dataB = b.data() as Map<String, dynamic>;
 
-                              // We filtered nulls above, but being extra safe
                               final locA = dataA['location'] as GeoPoint?;
                               final locB = dataB['location'] as GeoPoint?;
 
