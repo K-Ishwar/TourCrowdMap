@@ -27,99 +27,135 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
+
+  // Focus node for search bar to control suggestion visibility
+  final FocusNode _searchFocusNode = FocusNode();
+
+  // State for category filtering
+  String? _selectedCategory;
+  final List<String> _categories = [
+    'Historic',
+    'Nature',
+    'Religious',
+    'Fort',
+    'Hill Station',
+    'Museum',
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // 1. Full Screen Map
-          StreamBuilder<QuerySnapshot>(
-            stream: _firestoreService.getLocations(),
-            builder: (context, snapshot) {
-              final locations = snapshot.data?.docs ?? [];
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _firestoreService.getLocations(),
+        builder: (context, snapshot) {
+          final locations = snapshot.data?.docs ?? [];
 
-              // Filter locations based on search
-              final filteredLocations = locations.where((doc) {
+          // 1. Filter Logic
+          final filteredLocations = locations.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final name = (data['name'] as String? ?? '').toLowerCase();
+            final category = (data['category'] as String? ?? '');
+
+            bool matchesSearch =
+                _searchQuery.isEmpty ||
+                name.contains(_searchQuery.toLowerCase());
+            bool matchesCategory =
+                _selectedCategory == null || category == _selectedCategory;
+
+            return matchesSearch && matchesCategory;
+          }).toList();
+
+          // 2. Marker Visibility Logic
+          final markers = filteredLocations
+              .map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                final name = (data['name'] as String? ?? '').toLowerCase();
-                return name.contains(_searchQuery.toLowerCase());
-              }).toList();
+                final geo = data['location'] as GeoPoint?;
+                final crowd = data['crowdLevel'] as String? ?? 'Unknown';
 
-              // Update markers
-              final markers = filteredLocations
-                  .map((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final geo = data['location'] as GeoPoint?;
-                    final crowd = data['crowdLevel'] as String? ?? 'Unknown';
+                if (geo == null) return null;
 
-                    if (geo == null) return null;
+                // DECISION: Show marker ONLY if:
+                // 1. It is the currently selected location (always show selected)
+                // 2. OR User is explicitly searching/filtering (Query not empty OR Category not null)
+                final isSelected = _selectedLocationId == doc.id;
+                final isFiltering =
+                    _searchQuery.isNotEmpty || _selectedCategory != null;
 
-                    Color color = Colors.grey;
-                    if (crowd.toLowerCase().contains('low')) {
-                      color = Colors.green;
-                    } else if (crowd.toLowerCase().contains('moderate')) {
-                      color = Colors.orange;
-                    } else if (crowd.toLowerCase().contains('high')) {
-                      color = Colors.red;
-                    }
+                if (!isSelected && !isFiltering) {
+                  return null; // Hide marker by default to keep map clean
+                }
 
-                    final isSelected = _selectedLocationId == doc.id;
+                Color color = Colors.grey;
+                if (crowd.toLowerCase().contains('low')) {
+                  color = Colors.green;
+                } else if (crowd.toLowerCase().contains('moderate')) {
+                  color = Colors.orange;
+                } else if (crowd.toLowerCase().contains('high')) {
+                  color = Colors.red;
+                }
 
-                    return Marker(
-                      point: LatLng(geo.latitude, geo.longitude),
-                      width: isSelected ? 60 : 40,
-                      height: isSelected ? 60 : 40,
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedLocationId = doc.id;
-                          });
-                          _mapController.move(
-                            LatLng(geo.latitude, geo.longitude),
-                            15,
-                          );
-                        },
-                        child: AnimatedContainer(
-                          duration: 300.ms,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected ? Colors.blue : Colors.white,
-                              width: isSelected ? 3 : 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 6,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.location_on,
-                            color: color,
-                            size: isSelected ? 36 : 24,
-                          ),
+                return Marker(
+                  point: LatLng(geo.latitude, geo.longitude),
+                  width: isSelected ? 60 : 40,
+                  height: isSelected ? 60 : 40,
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedLocationId = doc.id;
+                      });
+                      _mapController.move(
+                        LatLng(geo.latitude, geo.longitude),
+                        15,
+                      );
+                      FocusScope.of(context).unfocus();
+                    },
+                    child: AnimatedContainer(
+                      duration: 300.ms,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected
+                              ? Colors.blue
+                              : Theme.of(context).dividerColor,
+                          width: isSelected ? 3 : 2,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
-                    );
-                  })
-                  .whereType<Marker>()
-                  .toList();
+                      child: Icon(
+                        Icons.location_on,
+                        color: color,
+                        size: isSelected ? 36 : 24,
+                      ),
+                    ),
+                  ),
+                );
+              })
+              .whereType<Marker>()
+              .toList();
 
-              return FlutterMap(
+          return Stack(
+            children: [
+              // Map Layer
+              FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
                   initialCenter: const LatLng(18.5204, 73.8567), // Pune
-                  initialZoom: 13.0,
+                  initialZoom: 11.0, // Zoom out slightly for district view
                   onTap: (tapPosition, point) {
                     if (_selectedLocationId != null) {
                       setState(() => _selectedLocationId = null);
                     }
+                    FocusScope.of(context).unfocus();
                   },
                 ),
                 children: [
@@ -132,11 +168,25 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     CircleLayer(
                       circles: filteredLocations
                           .map((doc) {
+                            // Same logic: only show heatmap circles if filtering or selected?
+                            // Or maybe heatmap shows general density even without markers?
+                            // Let's hide them too to match "Clean Map" philosophy unless asked.
+                            // Actually, heatmaps are useful for "at a glance" crowd.
+                            // I'll keep them visible if the toggle is ON, but filtered by the list.
                             final data = doc.data() as Map<String, dynamic>;
                             final geo = data['location'] as GeoPoint?;
                             final crowd = (data['crowdLevel'] as String? ?? '')
                                 .toLowerCase();
                             if (geo == null) return null;
+
+                            // If not filtering/selected, maybe don't show heatmap dots either?
+                            // Let's stick to the list logic.
+                            final isSelected = _selectedLocationId == doc.id;
+                            final isFiltering =
+                                _searchQuery.isNotEmpty ||
+                                _selectedCategory != null;
+
+                            if (!isSelected && !isFiltering) return null;
 
                             Color color = Colors.grey.withValues(alpha: 0.3);
                             if (crowd.contains('low')) {
@@ -161,105 +211,237 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     ),
                   MarkerLayer(markers: markers),
                 ],
-              );
-            },
-          ),
+              ),
 
-          // 2. Heatmap Toggle (Top Right)
-          Positioned(
-            top: 16,
-            right: 16,
-            child: FloatingActionButton.small(
-              backgroundColor: Colors.white,
-              foregroundColor: _showHeatmap ? Colors.blue : Colors.grey,
-              child: const Icon(Icons.layers),
-              onPressed: () => setState(() => _showHeatmap = !_showHeatmap),
-            ),
-          ),
-
-          // 3. Admin Tools (Bottom Right)
-          Positioned(
-            bottom: 32,
-            right: 16,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.small(
-                  heroTag: 'admin',
+              // Heatmap Toggle
+              Positioned(
+                top: 16,
+                right: 16,
+                child: FloatingActionButton.small(
                   backgroundColor: Colors.white,
-                  foregroundColor: Colors.blueGrey.shade900,
-                  onPressed: () => context.push('/admin'),
-                  child: const Icon(Icons.admin_panel_settings),
+                  foregroundColor: _showHeatmap ? Colors.blue : Colors.grey,
+                  child: const Icon(Icons.layers),
+                  onPressed: () => setState(() => _showHeatmap = !_showHeatmap),
                 ),
-                const SizedBox(height: 12),
-                FloatingActionButton.small(
-                  heroTag: 'simulate',
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.purple.shade900,
-                  onPressed: () {
-                    _firestoreService.simulateLiveUpdates();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Simulating Live Data Update...'),
+              ),
+
+              // Admin Tools
+              Positioned(
+                bottom: 32,
+                right: 16,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FloatingActionButton.small(
+                      heroTag: 'admin',
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.blueGrey.shade900,
+                      onPressed: () => context.push('/admin'),
+                      child: const Icon(Icons.admin_panel_settings),
+                    ),
+                    const SizedBox(height: 12),
+                    FloatingActionButton.small(
+                      heroTag: 'simulate',
+                      backgroundColor: Theme.of(context).cardColor,
+                      foregroundColor: Colors.purple.shade900,
+                      onPressed: () {
+                        _firestoreService.simulateLiveUpdates();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Simulating Live Data Update...'),
+                          ),
+                        );
+                      },
+                      child: const Icon(Icons.auto_awesome),
+                    ),
+                    const SizedBox(height: 12),
+                    // Temporary Button to Load Pune Data
+                    FloatingActionButton(
+                      heroTag: 'seed_pune',
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      tooltip: 'Load Pune Data',
+                      onPressed: () {
+                        _firestoreService.seedPuneData();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Loading Pune District Tourist Places...',
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Icon(Icons.download),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Search Bar & Filter Chips
+              Positioned(
+                top: 16,
+                left: 16,
+                right: MediaQuery.of(context).size.width > 600 ? null : 70,
+                width: MediaQuery.of(context).size.width > 600 ? 500 : null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Card(
+                      elevation: 4,
+                      color: Theme.of(context).cardColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  },
-                  child: const Icon(Icons.auto_awesome),
-                ),
-              ],
-            ),
-          ),
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        decoration: InputDecoration(
+                          hintText: 'Search Pune tourist places...',
+                          hintStyle: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                        ),
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value),
+                      ),
+                    ),
 
-          // 4. Search Bar (Top Left)
-          Positioned(
-            top: 16,
-            left: 16,
-            right: MediaQuery.of(context).size.width > 600 ? null : 70,
-            width: MediaQuery.of(context).size.width > 600 ? 400 : null,
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search locations...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                ),
-                onChanged: (value) => setState(() => _searchQuery = value),
-              ),
-            ),
-          ),
+                    // Filter Chips
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: const Text('All'),
+                              selected: _selectedCategory == null,
+                              onSelected: (bool selected) {
+                                setState(() {
+                                  _selectedCategory = null;
+                                  // 'All' functionally means 'Reset Category Filter'
+                                  // BUT combined with 'Clean Map' logic, selecting 'All'
+                                  // usually implies 'Show Everything'.
+                                  // If _selectedCategory is null, and Query is empty, map is currently hidden.
+                                  // We might need a special state or flag to "Show All" explicitly.
+                                  // For now, let's allow 'All' to just clear the category filter.
+                                  // Users can type or pick a specific category to see items.
+                                });
+                              },
+                            ),
+                          ),
+                          ..._categories.map((category) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                label: Text(category),
+                                selected: _selectedCategory == category,
+                                onSelected: (bool selected) {
+                                  setState(() {
+                                    _selectedCategory = selected
+                                        ? category
+                                        : null;
+                                  });
+                                },
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
 
-          // 5. Details Panel (Left Side Overlay)
-          if (_selectedLocationId != null)
-            Positioned(
-              top: MediaQuery.of(context).size.width > 600 ? 80 : null,
-              bottom: 0,
-              left: 0,
-              right: MediaQuery.of(context).size.width > 600 ? null : 0,
-              width: MediaQuery.of(context).size.width > 600 ? 400 : null,
-              height: MediaQuery.of(context).size.width > 600
-                  ? null
-                  : MediaQuery.of(context).size.height * 0.45,
-              child: _buildDetailsPanel(),
-            ),
-        ],
+                    if (_searchQuery.isNotEmpty && filteredLocations.isNotEmpty)
+                      Card(
+                        elevation: 4,
+                        margin: const EdgeInsets.only(top: 8),
+                        color: Theme.of(context).cardColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 200),
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: filteredLocations.length,
+                            itemBuilder: (context, index) {
+                              final doc = filteredLocations[index];
+                              final data = doc.data() as Map<String, dynamic>;
+                              final geo = data['location'] as GeoPoint?;
+
+                              return ListTile(
+                                leading: const Icon(
+                                  Icons.place,
+                                  color: Colors.grey,
+                                  size: 20,
+                                ),
+                                title: Text(
+                                  data['name'] ?? 'Unknown',
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                subtitle: Text(
+                                  '${data['category'] ?? 'Place'} • ${data['crowdLevel'] ?? 'Unknown'} Crowd',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                onTap: () {
+                                  if (geo != null) {
+                                    setState(() {
+                                      _selectedLocationId = doc.id;
+                                      _searchQuery = '';
+                                      _searchController.clear();
+                                    });
+                                    _mapController.move(
+                                      LatLng(geo.latitude, geo.longitude),
+                                      15,
+                                    );
+                                    FocusScope.of(context).unfocus();
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+              // Details Panel
+              if (_selectedLocationId != null)
+                Positioned(
+                  top: MediaQuery.of(context).size.width > 600 ? 80 : null,
+                  bottom: 0,
+                  left: 0,
+                  right: MediaQuery.of(context).size.width > 600 ? null : 0,
+                  width: MediaQuery.of(context).size.width > 600 ? 400 : null,
+                  height: MediaQuery.of(context).size.width > 600
+                      ? null
+                      : MediaQuery.of(context).size.height * 0.45,
+                  child: _buildDetailsPanel(),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -270,6 +452,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           ? const EdgeInsets.only(left: 16, bottom: 16)
           : EdgeInsets.zero,
       elevation: 8,
+      color: Theme.of(context).cardColor,
       shape: MediaQuery.of(context).size.width > 600
           ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
           : const RoundedRectangleBorder(
@@ -284,13 +467,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.grey.shade100,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Location Details',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.titleMedium?.color,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),

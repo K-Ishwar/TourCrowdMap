@@ -18,6 +18,8 @@ class MainApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'TourCrowdMap',
       theme: appTheme,
+      darkTheme: darkTheme, // Auto Dark Mode
+      themeMode: ThemeMode.system, // Respect system/browser setting
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
