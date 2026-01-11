@@ -70,6 +70,7 @@ class LocationDetailsScreen extends StatelessWidget {
           final description = data['description'] ?? 'No description provided.';
           final crowdLevel = data['crowdLevel'] ?? 'Unknown';
           final bestTime = data['bestTimeToVisit'] ?? 'Not specified';
+          final imageUrl = data['imageUrl'] as String?;
           final lastUpdatedTimestamp = data['lastUpdated'] as Timestamp?;
 
           String lastUpdatedStr = 'Never';
@@ -93,21 +94,61 @@ class LocationDetailsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  height: 250,
-                  color: Colors.grey.shade300,
-                  child: Center(
-                    child:
-                        Icon(
-                          Icons.map_rounded,
-                          size: 80,
-                          color: Colors.grey.shade500,
-                        ).animate().scale(
-                          duration: 500.ms,
-                          curve: Curves.easeOutBack,
-                        ),
+                if (imageUrl != null && imageUrl.isNotEmpty)
+                  Stack(
+                    children: [
+                      Image.network(
+                        imageUrl,
+                        height: 250,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            height: 250,
+                            color: Colors.grey.shade200,
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 250,
+                            color: Colors.grey.shade300,
+                            child: const Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      // Gradient Overlay for text readability if needed later,
+                      // but for now just the image.
+                    ],
+                  )
+                else
+                  Container(
+                    height: 250,
+                    color: Colors.grey.shade300,
+                    child: Center(
+                      child: Icon(
+                        Icons.image,
+                        size: 50,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
                   ),
-                ),
+
                 Padding(
                   padding: const EdgeInsets.all(24.0),
                   child: Column(
@@ -236,6 +277,147 @@ class LocationDetailsScreen extends StatelessWidget {
 
                       // Popular Times Chart (Visual Analytics)
                       const CrowdChart().animate().fadeIn(delay: 600.ms),
+
+                      const SizedBox(height: 24),
+
+                      // --- User Reviews Section ---
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Community Reviews',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => _showAddReviewDialog(
+                              context,
+                              firestoreService,
+                              id!,
+                            ),
+                            icon: const Icon(Icons.rate_review),
+                            label: const Text('Write Review'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: firestoreService.getReviews(id!),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return const Text('Error loading reviews');
+                          }
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          final reviews = snapshot.data?.docs ?? [];
+                          if (reviews.isEmpty) {
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).cardColor,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Theme.of(
+                                    context,
+                                  ).dividerColor.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  "No reviews yet. Be the first!",
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                            );
+                          }
+
+                          return ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: reviews.length,
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final data =
+                                  reviews[index].data() as Map<String, dynamic>;
+                              final rating =
+                                  (data['rating'] as num?)?.toDouble() ?? 0.0;
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).cardColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor:
+                                              Colors.deepPurple.shade100,
+                                          child: Text(
+                                            (data['userName'] as String? ??
+                                                    'U')[0]
+                                                .toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.deepPurple,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          data['userName'] ?? 'Anonymous',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Icon(
+                                          Icons.star,
+                                          color: Colors.amber,
+                                          size: 16,
+                                        ),
+                                        Text(
+                                          rating.toStringAsFixed(1),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      data['comment'] ?? '',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
 
                       const SizedBox(height: 24),
 
@@ -539,14 +721,84 @@ class LocationDetailsScreen extends StatelessWidget {
 
   Future<void> _launchMaps(GeoPoint? location) async {
     if (location == null) return;
+    // Use the 'dir' (directions) action to open navigation mode directly
     final url = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}',
+      'https://www.google.com/maps/dir/?api=1&destination=${location.latitude},${location.longitude}&travelmode=driving',
     );
+    // Alternatively, for native intent: 'google.navigation:q=${location.latitude},${location.longitude}'
+
     if (await canLaunchUrl(url)) {
-      await launchUrl(url);
+      await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
       debugPrint('Could not launch $url');
     }
+  }
+
+  Future<void> _showAddReviewDialog(
+    BuildContext context,
+    FirestoreService service,
+    String docId,
+  ) async {
+    final commentController = TextEditingController();
+    double rating = 5.0;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Write a Review'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('How was your experience?'),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (index) {
+                  return IconButton(
+                    icon: Icon(
+                      index < rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 32,
+                    ),
+                    onPressed: () => setState(() => rating = index + 1.0),
+                  );
+                }),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: commentController,
+                decoration: const InputDecoration(
+                  labelText: 'Comment',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (commentController.text.isNotEmpty) {
+                  service.addReview(
+                    docId,
+                    'User${DateTime.now().millisecond}', // Simulated User
+                    rating,
+                    commentController.text,
+                  );
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -48,6 +48,7 @@ dependencies:
   # google_maps_flutter removed
   # google_maps_flutter_web removed
   intl: ^0.20.2
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

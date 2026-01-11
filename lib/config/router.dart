@@ -6,6 +6,7 @@ import 'package:tour_crowd_map/features/details/location_details_screen.dart';
 import 'package:tour_crowd_map/features/home/home_screen.dart';
 import 'package:tour_crowd_map/features/layout/main_layout.dart';
 import 'package:tour_crowd_map/features/map/map_screen.dart';
+import 'package:tour_crowd_map/features/planner/itinerary_planner_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -39,6 +40,12 @@ final router = GoRouter(
           path: '/admin',
           builder: (context, state) {
             return const AdminDashboardScreen();
+          },
+        ),
+        GoRoute(
+          path: '/planner',
+          builder: (context, state) {
+            return const ItineraryPlannerScreen();
           },
         ),
       ],
