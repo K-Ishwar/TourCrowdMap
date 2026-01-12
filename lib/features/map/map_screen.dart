@@ -1072,24 +1072,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         setState(() => _showTransport = val);
                       },
                     ),
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(Icons.refresh, color: Colors.red),
-                      title: const Text('Reset Data (Developer)'),
-                      subtitle: const Text('Reloads seeds with Images'),
-                      onTap: () async {
-                        Navigator.pop(innerContext); // Close menu
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Reseeding data...')),
-                        );
-                        await _firestoreService.seedPuneData();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Data reseeded!')),
-                          );
-                        }
-                      },
-                    ),
                   ],
                 ),
               ),
