@@ -742,20 +742,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
                     // Speed Dial Options
                     if (_isToolsOpen) ...[
-                      // Admin
-                      FloatingActionButton.small(
-                            heroTag: 'admin_fab',
-                            backgroundColor: Colors.blueGrey.shade800,
-                            foregroundColor: Colors.white,
-                            tooltip: 'Admin Panel',
-                            onPressed: () => context.push('/admin'),
-                            child: const Icon(Icons.security),
-                          )
-                          .animate()
-                          .slideY(begin: 1.0, end: 0, duration: 200.ms)
-                          .fadeIn(),
-                      const SizedBox(height: 12),
-
                       // Simulate (Dev)
                       FloatingActionButton.small(
                             heroTag: 'simulate_fab',

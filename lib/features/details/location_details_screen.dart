@@ -69,9 +69,16 @@ class LocationDetailsScreen extends StatelessWidget {
           final name = data['name'] ?? 'Unknown Location';
           final description = data['description'] ?? 'No description provided.';
           final crowdLevel = data['crowdLevel'] ?? 'Unknown';
-          final bestTime = data['bestTimeToVisit'] ?? 'Not specified';
+          final category =
+              data['category'] as String? ?? 'General'; // Get Category
           final imageUrl = data['imageUrl'] as String?;
           final lastUpdatedTimestamp = data['lastUpdated'] as Timestamp?;
+
+          // Smart Suggestion Logic
+          String bestTime = data['bestTimeToVisit'] ?? '';
+          if (bestTime.isEmpty || bestTime == 'Not specified') {
+            bestTime = _calculateBestTime(category);
+          }
 
           String lastUpdatedStr = 'Never';
           if (lastUpdatedTimestamp != null) {
@@ -799,6 +806,20 @@ class LocationDetailsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _calculateBestTime(String category) {
+    final cat = category.toLowerCase();
+    if (cat.contains('nature') || cat.contains('hill station')) {
+      return 'Early Morning (6 AM - 8 AM)\n(Peaceful Sunrise)';
+    } else if (cat.contains('historic') || cat.contains('fort')) {
+      return 'Weekdays, Morning (9 AM - 11 AM)\n(Avoid School Trips)';
+    } else if (cat.contains('religious') || cat.contains('temple')) {
+      return 'Afternoon (1 PM - 4 PM)\n(Post-Aarti Lull)';
+    } else if (cat.contains('market') || cat.contains('shopping')) {
+      return 'Morning (11 AM) or Late Night';
+    }
+    return 'Weekdays (Tue-Thu) to avoid rush';
   }
 }
 

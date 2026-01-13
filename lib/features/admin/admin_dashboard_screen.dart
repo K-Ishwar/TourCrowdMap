@@ -13,11 +13,25 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  bool _isAuthenticated = false;
+  final TextEditingController _idController = TextEditingController();
+  final TextEditingController _passController = TextEditingController();
   int _selectedIndex = 0;
   final FirestoreService _firestoreService = FirestoreService();
 
   @override
+  void dispose() {
+    _idController.dispose();
+    _passController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!_isAuthenticated) {
+      return _buildLoginScreen();
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Authority Command Center'),
@@ -74,6 +88,93 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildLoginScreen() {
+    return Scaffold(
+      backgroundColor: Colors.blueGrey.shade900,
+      body: Center(
+        child: SingleChildScrollView(
+          child: Card(
+            margin: const EdgeInsets.all(24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              width: 400,
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.security, size: 64, color: Colors.blueGrey),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Admin Access',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueGrey.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  TextField(
+                    controller: _idController,
+                    decoration: const InputDecoration(
+                      labelText: 'Admin ID',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _passController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock),
+                    ),
+                    onSubmitted: (_) => _attemptLogin(),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _attemptLogin,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('Login'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => context.go('/'),
+                    child: const Text('Return to Home'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _attemptLogin() {
+    if (_idController.text.trim() == 'Admin' &&
+        _passController.text == 'Sonu Don') {
+      setState(() {
+        _isAuthenticated = true;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Invalid Credentials'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _buildCurrentTab() {
